@@ -2,7 +2,7 @@
     Reader monad transformer
 ------------------------------------------------------------------------------}
 module Reader (
-    ReaderT, runReaderT, ask, lift,
+    ReaderT, runReaderT, readerT, ask, lift,
     ) where
 
 import Control.Monad.IO.Class
@@ -20,9 +20,12 @@ instance MonadIO m => MonadIO (ReaderT r m) where
 instance MonadTrans (ReaderT r) where
     lift m = R $ \r -> m
 
+readerT :: (r -> m a) -> ReaderT r m a
+readerT = R
+
 bindR :: Monad m => ReaderT r m a -> (a -> ReaderT r m b) -> ReaderT r m b
 bindR m k = R $ \r -> runReaderT m r >>= \a -> runReaderT (k a) r
-
+    
 returnR :: Monad m => a -> ReaderT r m a
 returnR a = R $ \r -> return a
 
