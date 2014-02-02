@@ -1,7 +1,13 @@
+{-# LANGUAGE CPP #-}
 module Eval1 where
 
 import Data.IORef
+
+#ifdef IMPLICIT
+import ReaderImplicit
+#else
 import Reader
+#endif
 
 type Value = IORef Int
 type Eval  = ReaderT Value (ReaderT Value IO)

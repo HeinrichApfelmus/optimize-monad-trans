@@ -26,3 +26,8 @@ core3s :
 		-O -ddump-simpl \
 		$(MODULE).hs > $(MODULE).core3s.hs
 
+coreImplicit :
+	$(COMPILE) -DEVAL=Eval1 -DIMPLICIT -fforce-recomp \
+		-O -ddump-simpl \
+		$(MODULE).hs > $(MODULE).coreImplicit.hs
+
