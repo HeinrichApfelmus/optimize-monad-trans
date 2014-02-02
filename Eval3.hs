@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Eval3 where
 
 import Control.Monad.IO.Class
@@ -8,8 +9,11 @@ newtype Eval a = E { run :: Value -> Value -> IO a }
 
 instance Monad Eval where
     return a = E $ \_ _ -> return a
+#ifdef SHARING
+    m >>= k  = E $ \x -> let b = run m x in \y -> b y >>= \a -> run (k a) x y
+#else
     m >>= k  = E $ \x y -> run m x y >>= \a -> run (k a) x y
---    m >>= k  = E $ \x -> let b = run m x in \y -> b y >>= \a -> run (k a) x y
+#endif
 
 {-
 Key difference: (>>=)

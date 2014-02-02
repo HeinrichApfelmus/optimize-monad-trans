@@ -11,8 +11,8 @@ module OptimizeMonadTrans (
 import Control.Monad.IO.Class
 import Data.IORef
 
-#ifdef VARIANT
-import VARIANT
+#ifdef EVAL
+import EVAL
 #endif
 
 main = print =<< runEval example

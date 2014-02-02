@@ -7,9 +7,22 @@ COMPILE=ghc --make -outputdir $(OBJ) -i$(OBJ) -L$(OBJ)
 MODULE=OptimizeMonadTrans
 
 core1 :
-	$(COMPILE) -DVARIANT1 -fforce-recomp -O -ddump-simpl \
+	$(COMPILE) -DEVAL=Eval1 -fforce-recomp \
+		-O -ddump-simpl \
 		$(MODULE).hs > $(MODULE).core1.hs
 
 core2 :
-	$(COMPILE) -DVARIANT2 -fforce-recomp -O -ddump-simpl \
+	$(COMPILE) -DEVAL=Eval2 -fforce-recomp \
+		-O -ddump-simpl \
 		$(MODULE).hs > $(MODULE).core2.hs
+
+core3 :
+	$(COMPILE) -DEVAL=Eval3 -fforce-recomp \
+		-O -ddump-simpl \
+		$(MODULE).hs > $(MODULE).core3.hs
+
+core3s :
+	$(COMPILE) -DEVAL=Eval3 -DSHARING -fforce-recomp \
+		-O -ddump-simpl \
+		$(MODULE).hs > $(MODULE).core3s.hs
+
