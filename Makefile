@@ -31,3 +31,7 @@ coreImplicit :
 		-O -ddump-simpl \
 		$(MODULE).hs > $(MODULE).coreImplicit.hs
 
+coreRefl :
+	$(COMPILE) -DEVAL=Eval1 -DREFLECTION -fforce-recomp \
+		-O -ddump-simpl \
+		$(MODULE).hs > $(MODULE).coreRefl.hs

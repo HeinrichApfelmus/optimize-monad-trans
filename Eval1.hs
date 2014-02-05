@@ -6,7 +6,11 @@ import Data.IORef
 #ifdef IMPLICIT
 import ReaderImplicit
 #else
+#ifdef REFLECTION
+import ReaderReflection
+#else
 import Reader
+#endif
 #endif
 
 type Value = IORef Int
