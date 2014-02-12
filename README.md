@@ -22,8 +22,8 @@ The `go` function looks like a recursive definition of a closure / function, but
   [traversable]: http://hackage.haskell.org/package/base-4.6.0.1/docs/Data-Traversable.html
 
 
-Specific example
-----------------
+Example & Analysis
+------------------
 
 The module [`OptimizeMonadTrans`](OptimizeMonadTrans.hs) implements a traversal
 
@@ -33,22 +33,94 @@ which is then applied to a tree
 
     evaluate :: Tree -> Eval [Tree]
 
-The goal is to have `ghc -O` inline the monad `Eval` to the point that the traversal becomes a tight inner loop.
+The monad `Eval` is a simple `ReaderT` monad transformer on top of `IO`. The reader monad should be the simplest case to optimize for the compiler. The goal is to have `ghc -O` inline the monad to the point that the traversal becomes a tight inner loop.
 
 Different implementations for the `Eval` monad can yield different results:
 
-* The module [`Eval1`](Eval1.hs) implementes a two-level `ReaderT` transformer. The resulting core [`OptimizeMonadTrans.core1.hs`](OptimizeMonadTrans.core1.hs) is not good, it allocates closures.
+* The module [`Eval1`](Eval1.hs) implementes a two-level `ReaderT` transformer. The resulting core [`OptimizeMonadTrans.core1.hs`](results/OptimizeMonadTrans.core1.hs) is not good, it allocates closures. It looks roughly like this:
 
-* The module [`Eval2`](Eval2.hs) uses a single level `ReaderT`. The resulting core [`OptimizeMonadTrans.core2.hs`](OptimizeMonadTrans.core2.hs) is very good, the traversal is inlined into a tight inner loop.
+        traverseExample :: [Tree] -> Eval1.Value -> ReaderT Eval1.Value IO ()
+        traverseExample = \tree valueOuter ->
+            case tree of _ {
+                []     -> return';
+                (x:xs) -> 
+                    let m_Xim :: ReaderT Eval1.Value IO [Tree]
+                        m_Xim = case x of _ {
+                                OptimizeMonadTrans.Branch action children -> ... 
+                            }
+                    in
+                        \(valueInner :: Eval1.value)
+                         (s :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                            case m_Xim valueInner s of _
+                                { ... traverseExample ... };
+            }
 
-The module [`Reader`](Reader.hs) implements the reader transformer. The goal is to add various INLINE pragmas to its implementation, so that `Eval1` will be inlined just as well as `Eval2` is. But how??
+        
+        return' :: Eval1.Value -> GHC.Prim.State# GHC.Prim.RealWorld
+                -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+        return' = \_ s -> (# s, () #)
+
+    The program performs a case analysis on the list of trees after binding the outer reader value to `valueOuter`, but then it allocates an action `m_Xim` for the inner reader and builds a closure that essentially just calls `m_Xim`. 
+
+* The module [`Eval2`](Eval2.hs) uses a single level `ReaderT`. The resulting core [`OptimizeMonadTrans.core2.hs`](results/OptimizeMonadTrans.core2.hs) is very good, the traversal is inlined into a tight inner loop. It looks roughly like this:
+
+        traverseExample :: [Tree] -> (Eval2.Value,Eval2.Value)
+            -> GHC.Prim.State# GHC.Prim.RealWorld
+            -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+        traverseExample = \tree value s ->
+            case tree of _ {
+              []     -> (# s, () #);
+              (x:xs) -> case x of _ {
+                  OptimizeMonadTrans.Branch action_aAv children_aAw -> ... ;
+                  ...
+              }
+        
+    After taking both the reader value and GHC's internal state token for the IO monad as arguments, the program continues a case analysis on the list of trees. No other closures are build and no monadic action is shared with a `let` binding.
+
+The first variant `Eval1` is more modular, as it uses a stack of monad transformers, while the second variant `Eval2` yields much faster code. Is it possible to add INLINE or other compiler annotations to have the first variant behave like the second?
+
+Unfortunately, the answer is **"no"**. The variant `Eval3` reveals why. Defining a reader monad with two arguments,
+    
+    newtype Eval a = E { run :: Value -> Value -> IO a }
+
+the stack of monad transformers from variant `Eval1` is equivalent to the monad bind
+
+    m >>= k  = E $ \x -> let b = run m x in \y -> b y >>= \a -> run (k a) x y
+
+while the single argument from variant `Eval2` is equivalent to
+
+    m >>= k  = E $ \x y -> run m x y >>= \a -> run (k a) x y
+
+The difference is slight but important: in the first variant, the computation `run m x` i shared over several values for `y`, while in the second variant, the computation `run m x` is recomputed for every invocation with a value `y`. Since this computation could have been very expensive, rightfully GHC refuses to inline the first variant.
+
+Note that the same reasoning could be applied to the state token for the `IO` monad. Why doesn't GHC build closures for that? The answer is that the compiler treats the `State#` type constructor as a special case and doesn't refrain from recomputing `IO` actions. This is GHC's infamous [state hack][].
+
+  [state hack]: https://ghc.haskell.org/trac/ghc/ticket/1168
+
+
+Building
+--------
 
 A [`Makefile`](Makefile) helps with compiling. The commands
 
     $ make core1
     $ make core2
+    $ make core3
+    $ make core3s
 
-will compile the main module using `Eval1` or `Eval2` respectively and output the corresponding GHC core.
+will compile the main module using the different variants and output the corresponding GHC core to the [`results`](results/) folder.
+
+There are two more exotic variants as well. Building with
+
+    $ make coreImplicit
+
+will use GHCs `ImplicitParameters` extension to implement the reader monad transformer, while
+
+    $ make coreRefl
+
+uses [type class reflection][reflection] to implement the monad transformer, both in the hope of circumventing the issue with sharing by moving the reader arguments into the type system. However, as the core demonstrates, neither implementation succeeds.
+
+  [reflection]: http://hackage.haskell.org/package/reflection
 
 Resources
 ---------
