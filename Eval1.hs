@@ -27,3 +27,13 @@ runEval m = do
     ref <- newIORef 0
     runReaderT (runReaderT m ref) ref
     readIORef ref
+
+bindEval
+  :: Eval a
+  -> (a -> Eval b)
+  -> Eval b
+bindEval m k = readerT $ \x -> readerT $ \y -> do
+    a <- runReaderT (runReaderT m x) y
+    runReaderT (runReaderT (k a) x) y
+{-# INLINE bindEval #-}
+{-# RULES "rewrite >>= for Eval" (>>=) = bindEval #-}
