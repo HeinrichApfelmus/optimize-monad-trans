@@ -2,7 +2,7 @@ PHONY: core
 
 OBJ=build
 COMPILE=ghc --make -outputdir $(OBJ) -i$(OBJ) -L$(OBJ)
-GHC_OPTS=-O -ddump-simpl
+GHC_OPTS=-O -ddump-simpl -dsuppress-coercions -dsuppress-uniques
 
 # Compile and inspect core for the inner loop
 MODULE=OptimizeMonadTrans
