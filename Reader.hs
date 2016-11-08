@@ -10,6 +10,13 @@ import Control.Monad.Trans.Class
 
 newtype ReaderT r m a = R { runReaderT :: r -> m a }
 
+instance Functor m => Functor (ReaderT r m) where
+  fmap f (R g) = R $ \r -> f <$> g r
+
+instance Applicative m => Applicative (ReaderT r m) where
+  pure a = R $ \r -> pure a
+  R f <*> R a = R $ \r -> f r <*> a r
+
 instance Monad m => Monad (ReaderT r m) where
     (>>=)  = bindR
     return = returnR
